@@ -1,44 +1,9 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import gql from 'graphql-tag';
-import { v4 as uuid } from 'uuid';
+import mongoose from 'mongoose';
+import Person from './models/person';
 
-const persons = [
-  {
-    id: 'ac293e21-74a2-400f-b447-0fe6bce315d0',
-    name: 'Juan Pérez',
-    phone: '+1234567890',
-    street: 'Calle Principal 123',
-    city: 'Ciudad',
-    document: 123456789,
-    dateBirthday: '1990-05-15',
-  },
-  {
-    id: 'c475d08e-39dd-4a7a-b721-e197ab604683',
-    name: 'María González',
-    phone: '',
-    document: 987654321,
-    dateBirthday: '1985-10-20',
-  },
-  {
-    id: '307b232e-95f3-4058-ac79-cb663e323935',
-    name: 'Carlos Rodríguez',
-    document: 456789123,
-    dateBirthday: '1978-03-08',
-  },
-  {
-    id: '1b88fa4e-0a8a-4ffb-93a6-f5fc3efbc7dc',
-    name: 'Luisa Martínez',
-    document: 789123456,
-    dateBirthday: '2020-12-30',
-  },
-  {
-    id: 'bbf038fe-2204-4a89-92f1-03cef14ac9b4',
-    name: 'Pepe Martínez',
-    document: 789144456,
-    dateBirthday: '2015-12-30',
-  },
-];
 
 // Definir los datos
 const typeDefs = gql`
@@ -87,18 +52,13 @@ const typeDefs = gql`
 // Definir las peticiones
 const resolvers = {
   Query: {
-    personCount: () => persons.length,
+    personCount: () => Person.collection.countDocuments(),
     allPersons: (root, args) => {
-      if (!args.phone) return persons;
-
-      const byPhone = (person) =>
-        args.phone === 'Yes' ? person.phone : !person.phone;
-
-      return persons.filter(byPhone);
+			return Person.find({phone: {$exists: args.phone === 'YES'}})
     },
     findPerson: (root, args) => {
       const { id } = args;
-      return persons.find((person) => person.id === id);
+      return Person.findOne({ id });
     },
   },
   Person: {
@@ -114,18 +74,9 @@ const resolvers = {
   },
   Mutation: {
     addPerson: (root, args) => {
-      const p = { ...args, id: uuid() };
+			const person = new Person({...args})
 
-      const pI = persons.findIndex(
-        (person) => person.document === args.document
-      );
-
-      if (pI !== -1) {
-        throw new Error('Document must be unique');
-      }
-
-      persons.push(p);
-      return p;
+			return person.save()
     },
     deletePerson: (root, args) => {
       const { id } = args;
@@ -138,26 +89,31 @@ const resolvers = {
 
       return false;
     },
-    editPerson: (root, args) => {
-      const { id } = args;
-      const pI = persons.findIndex((person) => person.id === id);
-
-      if (pI === -1) {
-        throw new Error('Id not exist');
-      }
-
-      const p = { ...persons[pI], ...args };
-      persons[pI] = p;
-      return p;
+    editPerson: async (root, args) => {
+			const person = await Person.findOne({ id: args.id })
+			if (!person) return 
+			return person
     },
   },
 };
 
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-});
+const MONGODB_URI = `mongodb://mongo-user:123456@localhost:27017`;
+await mongoose
+  .connect(MONGODB_URI, {
+    dbName: 'DB_Persons',
+  })
+  .then(async () => {
+    console.log(`🔌 Connected to DB`);
 
-const { url } = await startStandaloneServer(server);
+    const server = new ApolloServer({
+      typeDefs,
+      resolvers,
+    });
 
-console.log(`🚀 Server ready at ${url}`);
+    const { url } = await startStandaloneServer(server);
+
+    console.log(`🚀 Server ready at ${url}`);
+  })
+  .catch((error) => {
+    console.error(`❌ error connection to DB`, error.message);
+  });
