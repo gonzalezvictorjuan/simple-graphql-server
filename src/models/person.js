@@ -1,4 +1,4 @@
-import mongoose from 'mongoose'
+import mongoose from 'mongoose';
 import beautifyUnique from 'mongoose-beautiful-unique-validation';
 
 const schema = new mongoose.Schema({
@@ -38,7 +38,7 @@ const schema = new mongoose.Schema({
   document: {
     type: String,
     required: true,
-    unique: false,
+    unique: true,
     minlenght: 6,
     maxlenght: 10,
   },
